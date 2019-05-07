@@ -35,6 +35,7 @@ void loop() {
 		sendCoordinates(coordinates);
 		free(coordinates);
 	}
+	
 }
 
 char* getCoordinates() {
@@ -52,7 +53,10 @@ char* getCoordinates() {
 	strcpy(json, "{ \"latitude\": \"");
 	
 	char * pch;
-	pch = strtok(result, ",");
+	pch = strtok(result, "\n");
+	pch = strtok(NULL, "\n");
+	pch = strtok(NULL, "\n,");
+
 	strcat(json, pch);
 	
 	strcat(json, "\", \"longitude\": \"");

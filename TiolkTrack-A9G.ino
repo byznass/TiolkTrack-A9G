@@ -61,7 +61,7 @@ char* getCoordinates() {
 	
 	strcat(json, "\", \"longitude\": \"");
 	
-	pch = strtok(NULL, ",");
+	pch = strtok(NULL, "\r,");
 	strcat(json, pch);
 	
 	strcat(json, "\" }");

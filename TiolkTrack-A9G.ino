@@ -1,4 +1,5 @@
 #include <SoftwareSerial.h>
+#include <string.h>
 
 SoftwareSerial mySerial(7, 8);
 
@@ -12,56 +13,58 @@ void setup() {
 
 	showSerialData(20000UL);
 
-	executeCommand("AT", 2000UL);
-	executeCommand("AT", 2000UL);
-	executeCommand("AT", 2000UL);
-	executeCommand("AT", 2000UL);
-	executeCommand("AT", 2000UL);
+	executeCommandWithEcho("AT", 2000UL);
+	executeCommandWithEcho("AT", 2000UL);
+	executeCommandWithEcho("AT", 2000UL);
+	executeCommandWithEcho("AT", 2000UL);
+	executeCommandWithEcho("AT", 2000UL);
 
-	executeCommand("AT+CGATT=1", 3000UL);
-	executeCommand("AT+CGDCONT=1, \"IP\", \"net\"", 3000UL);
-	executeCommand("AT+CGACT=1,1", 3000UL);
-}
+	executeCommandWithEcho("AT+CGATT=1", 3000UL);
+	executeCommandWithEcho("AT+CGDCONT=1, \"IP\", \"net\"", 3000UL);
+	executeCommandWithEcho("AT+CGACT=1,1", 3000UL);
 
-void executeCommand(const char* command, unsigned long waitTime) {
-	
-	mySerial.write("----Sending command----\r\n");
-	mySerial.write(command);
-	mySerial.write("\r\n");
-	mySerial.write("-----------------------\r\n");
-	
-	Serial.println(command);
-	showSerialData(waitTime);
-}
-
-void showSerialData(unsigned long waitTime){
-
-	unsigned long time = millis();
-
-	unsigned long delta = 0;
-
-	while (delta < waitTime){
-		while (Serial.available() != 0) {
-			mySerial.write(Serial.read());
-		}
-
-		delta = millis() - time;
-	}
+	executeCommandWithEcho("AT+GPS=1", 5000UL);
 }
 
 void loop() {
 
 	delay(5000);
-	String coordinates = getCoordinates();
-	sendCoordinates(coordinates);
+	char* coordinates = getCoordinates();
+
+	if(coordinates != NULL) {
+		sendCoordinates(coordinates);
+		free(coordinates);
+	}
 }
 
-String getCoordinates() {
+char* getCoordinates() {
 
+	char* result = executeCommandWithResult("AT+LOCATION = 2", 2000UL);
+
+	// Search for 'F' letter that is present in error message
+	if(result[0] == 0 || strchr(result, 'F') != NULL){
+		free(result);
+		return NULL;
+	}
 	
+	char* json = (char*)malloc(64 * sizeof(char));
+	
+	strcpy(json, "{ \"latitude\": \"");
+	
+	char * pch;
+	pch = strtok(result, ",");
+	strcat(json, pch);
+	
+	strcat(json, "\", \"longitude\": \"");
+	
+	pch = strtok(NULL, ",");
+	strcat(json, pch);
+	
+	strcat(json, "\" }");
+	
+	free(result);
 
-	++numberOfRequest;
-	return String("{ \"latitude\": \"lat") + String(numberOfRequest) + String("\", \"longitude\": \"long") + String(numberOfRequest) + String("\" }");
+	return json;
 }
 
 void sendCoordinates(String body) {
@@ -75,7 +78,67 @@ void sendCoordinates(String body) {
 
 	String requestCommand = String("At+cipsend="); requestCommand += String(httpRequest.length());
 
-	executeCommand("AT+CIPSTART=\"TCP\",\"tiolktrack.byznass.com\",31111", 5000UL);
-	executeCommand(requestCommand.c_str(), 2000UL);
-	executeCommand(httpRequest.c_str(), 5000UL);
+	executeCommandWithEcho("AT+CIPSTART=\"TCP\",\"tiolktrack.byznass.com\",31111", 5000UL);
+	executeCommandWithEcho(requestCommand.c_str(), 2000UL);
+	executeCommandWithEcho(httpRequest.c_str(), 5000UL);
+}
+
+void executeCommandWithEcho(const char* command, unsigned long waitTime) {
+	
+	executeCommand(command);
+	showSerialData(waitTime);
+}
+
+char* executeCommandWithResult(const char* command, unsigned long waitTime) {
+	
+	executeCommand(command);
+
+	char* result = getSerialData(waitTime);
+	mySerial.print(result);
+
+	return result;
+}
+
+void executeCommand(const char* command) {
+	
+	mySerial.write("----Sending command----\r\n");
+	mySerial.write(command);
+	mySerial.write("\r\n");
+	mySerial.write("-----------------------\r\n");
+	
+	Serial.println(command);
+}
+
+void showSerialData(unsigned long waitTime){
+
+	unsigned long time = millis();
+	unsigned long delta = 0;
+
+	while (delta < waitTime){
+		while (Serial.available() != 0) {
+			mySerial.write(Serial.read());
+		}
+
+		delta = millis() - time;
+	}
+}
+
+char* getSerialData(unsigned long waitTime) {
+
+	unsigned long time = millis();
+	unsigned long delta = 0;
+	
+	char* buff = (char*)malloc(64 * sizeof(char));
+	int pos = 0;
+	while (delta < waitTime){
+		while (Serial.available() != 0) {
+			buff[pos++] = (char) Serial.read();
+		}
+
+		delta = millis() - time;
+	}
+
+	buff[pos] = 0;
+
+	return buff;
 }
